@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -9,9 +11,12 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Ticket System API")
 
+default_origins = "http://localhost:5173,https://adamr-312.github.io"
+allowed_origins = os.environ.get("ALLOWED_ORIGINS", default_origins).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
