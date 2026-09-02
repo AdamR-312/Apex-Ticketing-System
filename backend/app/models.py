@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Column, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from .db import Base
@@ -53,6 +53,8 @@ class Ticket(Base):
     priority = Column(Enum(Priority), default=Priority.medium, nullable=False)
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     assigned_to_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    due_at = Column(DateTime, nullable=True)
+    tags = Column(JSON, nullable=False, default=list)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -65,6 +67,9 @@ class Ticket(Base):
     comments = relationship(
         "Comment", back_populates="ticket", cascade="all, delete-orphan"
     )
+    activity = relationship(
+        "TicketActivity", back_populates="ticket", cascade="all, delete-orphan"
+    )
 
 
 class Comment(Base):
@@ -74,7 +79,41 @@ class Comment(Base):
     ticket_id = Column(Integer, ForeignKey("tickets.id"), nullable=False)
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     body = Column(Text, nullable=False)
+    is_internal = Column(Boolean, nullable=False, default=False)
+    mentioned_user_ids = Column(JSON, nullable=False, default=list)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     ticket = relationship("Ticket", back_populates="comments")
     author = relationship("User")
+
+
+class TicketActivity(Base):
+    __tablename__ = "ticket_activity"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticket_id = Column(Integer, ForeignKey("tickets.id"), nullable=False)
+    actor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    message = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    ticket = relationship("Ticket", back_populates="activity")
+    actor = relationship("User")
+
+
+class AppSettings(Base):
+    __tablename__ = "app_settings"
+
+    # Single-row table (id is always 1) — there's only ever one site config.
+    id = Column(Integer, primary_key=True)
+    site_name = Column(String, nullable=False, default="Apex Ticketing")
+    support_email = Column(String, nullable=False, default="support@example.com")
+    default_priority = Column(Enum(Priority), default=Priority.medium, nullable=False)
+
+
+class Macro(Base):
+    __tablename__ = "macros"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    body = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)

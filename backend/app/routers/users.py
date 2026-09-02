@@ -15,10 +15,13 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     existing = db.query(models.User).filter(models.User.email == user.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
+    # No auth yet, so nothing stops a caller from passing role=admin here.
+    # TODO: restrict this to authenticated admins once auth lands.
     db_user = models.User(
         name=user.name,
         email=user.email,
         password_hash=hash_password(user.password),
+        role=user.role,
     )
     db.add(db_user)
     db.commit()
