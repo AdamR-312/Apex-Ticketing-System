@@ -8,6 +8,7 @@ export default function TeamPage() {
   const [users, setUsers] = useState([])
   const [tickets, setTickets] = useState([])
   const [error, setError] = useState(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     Promise.all([listUsers(), listTickets()])
@@ -16,6 +17,7 @@ export default function TeamPage() {
         setTickets(t)
       })
       .catch((err) => setError(err.message))
+      .finally(() => setLoading(false))
   }, [])
 
   return (
@@ -64,7 +66,8 @@ export default function TeamPage() {
           })}
         </tbody>
       </table>
-      {users.length === 0 && !error && <p className="empty-state">Loading…</p>}
+      {loading && <p className="empty-state">Loading…</p>}
+      {!loading && users.length === 0 && !error && <p className="empty-state">No accounts yet.</p>}
     </div>
   )
 }
