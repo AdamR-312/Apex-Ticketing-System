@@ -1,71 +1,72 @@
 import { useEffect, useState } from 'react'
-import { createTicket, listTickets } from './api'
+import { HashRouter, Routes, Route } from 'react-router-dom'
+import PrimaryNav from './components/PrimaryNav'
+import QueuePage from './pages/QueuePage'
+import DashboardPage from './pages/DashboardPage'
+import TeamPage from './pages/TeamPage'
+import MacrosPage from './pages/MacrosPage'
+import SettingsPage from './pages/SettingsPage'
+import { listTickets } from './api'
 import './App.css'
+
+const STARRED_STORAGE_KEY = 'apex.starredTicketIds'
+
+function loadStarredIds() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(STARRED_STORAGE_KEY) || '[]'))
+  } catch {
+    return new Set()
+  }
+}
 
 function App() {
   const [tickets, setTickets] = useState([])
-  const [error, setError] = useState(null)
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [priority, setPriority] = useState('medium')
+  const [starredIds, setStarredIds] = useState(loadStarredIds)
 
-  function refresh() {
-    listTickets()
-      .then(setTickets)
-      .catch((err) => setError(err.message))
-  }
+  useEffect(() => {
+    listTickets().then(setTickets).catch(() => {})
+  }, [])
 
-  useEffect(refresh, [])
+  useEffect(() => {
+    localStorage.setItem(STARRED_STORAGE_KEY, JSON.stringify([...starredIds]))
+  }, [starredIds])
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    try {
-      await createTicket({ title, description, priority })
-      setTitle('')
-      setDescription('')
-      setPriority('medium')
-      refresh()
-    } catch (err) {
-      setError(err.message)
-    }
+  function toggleStar(ticketId) {
+    setStarredIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(ticketId)) next.delete(ticketId)
+      else next.add(ticketId)
+      return next
+    })
   }
 
   return (
-    <main>
-      <h1>Ticket System</h1>
-
-      {error && <p className="error">{error}</p>}
-
-      <form onSubmit={handleSubmit}>
-        <input
-          placeholder="Title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          required
-        />
-        <textarea
-          placeholder="Description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          required
-        />
-        <select value={priority} onChange={(e) => setPriority(e.target.value)}>
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-        </select>
-        <button type="submit">Create Ticket</button>
-      </form>
-
-      <ul className="ticket-list">
-        {tickets.map((t) => (
-          <li key={t.id}>
-            <strong>{t.title}</strong> — {t.status} ({t.priority})
-            <p>{t.description}</p>
-          </li>
-        ))}
-      </ul>
-    </main>
+    <HashRouter>
+      <div className="app">
+        <div className="shell">
+          <PrimaryNav tickets={tickets} starredIds={starredIds} />
+          <div className="page-area">
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  <QueuePage
+                    tickets={tickets}
+                    setTickets={setTickets}
+                    starredIds={starredIds}
+                    onToggleStar={toggleStar}
+                  />
+                }
+              />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/team" element={<TeamPage />} />
+              <Route path="/macros" element={<MacrosPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+            </Routes>
+          </div>
+        </div>
+      </div>
+    </HashRouter>
   )
 }
 
