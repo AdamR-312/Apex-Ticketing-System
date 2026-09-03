@@ -34,13 +34,20 @@ function sortTickets(tickets, sortBy, usersById) {
         const nameB = usersById[b.created_by_id]?.name || ''
         return nameA.localeCompare(nameB)
       })
+    case 'due_date':
+      return sorted.sort((a, b) => {
+        if (!a.due_at && !b.due_at) return 0
+        if (!a.due_at) return 1
+        if (!b.due_at) return -1
+        return a.due_at.localeCompare(b.due_at)
+      })
     case 'updated_desc':
     default:
       return sorted.sort((a, b) => b.updated_at.localeCompare(a.updated_at))
   }
 }
 
-export default function QueuePage({ tickets, setTickets, starredIds, onToggleStar }) {
+export default function QueuePage({ tickets, ticketsLoading, setTickets, starredIds, onToggleStar }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedFolderKey = searchParams.get('folder') || DEFAULT_FOLDER
 
@@ -60,7 +67,11 @@ export default function QueuePage({ tickets, setTickets, starredIds, onToggleSta
 
   const folder = resolveFolder(selectedFolderKey)
   const ticketsInFolder = tickets.filter((t) => folder.filter(t, ctx))
-  const searchedTickets = ticketsInFolder.filter((t) =>
+  const isSearching = searchQuery.trim().length > 0
+  // A non-empty search box searches every ticket, not just the open folder —
+  // "search within Unassigned" is rarely what someone typing a query wants.
+  const searchScope = isSearching ? tickets : ticketsInFolder
+  const searchedTickets = searchScope.filter((t) =>
     matchesSearch(t, searchQuery, usersById[t.created_by_id]?.name || ''),
   )
   const visibleTickets = sortTickets(searchedTickets, sortBy, usersById)
@@ -87,9 +98,10 @@ export default function QueuePage({ tickets, setTickets, starredIds, onToggleSta
   }, [selectedTicketId])
 
   useEffect(() => {
-    const stillVisible = tickets
-      .filter((t) => folder.filter(t, ctx))
-      .filter((t) => matchesSearch(t, searchQuery, usersById[t.created_by_id]?.name || ''))
+    const scope = searchQuery.trim() ? tickets : tickets.filter((t) => folder.filter(t, ctx))
+    const stillVisible = scope.filter((t) =>
+      matchesSearch(t, searchQuery, usersById[t.created_by_id]?.name || ''),
+    )
     if (!stillVisible.some((t) => t.id === selectedTicketId)) {
       setSelectedTicketId(stillVisible[0]?.id ?? null)
     }
@@ -158,6 +170,22 @@ export default function QueuePage({ tickets, setTickets, starredIds, onToggleSta
     }
   }
 
+  async function handleBulkAddTag(tag) {
+    const targets = tickets.filter((t) => selectedIds.has(t.id))
+    try {
+      const updated = await Promise.all(
+        targets.map((t) =>
+          t.tags.includes(tag) ? t : updateTicket(t.id, { tags: [...t.tags, tag] }),
+        ),
+      )
+      const updatedById = new Map(updated.map((t) => [t.id, t]))
+      setTickets((prev) => prev.map((t) => updatedById.get(t.id) ?? t))
+      setSelectedIds(new Set())
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   return (
     <>
       {error && (
@@ -168,12 +196,13 @@ export default function QueuePage({ tickets, setTickets, starredIds, onToggleSta
       <div className="frame">
         <TicketList
           tickets={visibleTickets}
+          loading={ticketsLoading}
           totalInFolder={ticketsInFolder.length}
           usersById={usersById}
           users={users}
           selectedId={selectedTicketId}
           onSelect={setSelectedTicketId}
-          title={folder.label}
+          title={isSearching ? 'Search results' : folder.label}
           onNewTicket={() => setNewTicketOpen(true)}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -186,6 +215,7 @@ export default function QueuePage({ tickets, setTickets, starredIds, onToggleSta
           onToggleSelectAll={toggleSelectAll}
           onClearSelection={() => setSelectedIds(new Set())}
           onBulkUpdate={handleBulkUpdate}
+          onBulkAddTag={handleBulkAddTag}
         />
         <TicketDetail
           ticket={selectedTicket}
@@ -201,7 +231,11 @@ export default function QueuePage({ tickets, setTickets, starredIds, onToggleSta
         />
       </div>
       {isNewTicketOpen && (
-        <NewTicketModal onClose={() => setNewTicketOpen(false)} onCreate={handleCreateTicket} />
+        <NewTicketModal
+          users={users}
+          onClose={() => setNewTicketOpen(false)}
+          onCreate={handleCreateTicket}
+        />
       )}
     </>
   )

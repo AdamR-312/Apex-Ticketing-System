@@ -13,6 +13,13 @@ export function relativeTime(isoString) {
   return `${diffWeeks}w`
 }
 
+export function absoluteTime(isoString) {
+  return new Date(isoString + 'Z').toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+}
+
 export function initials(name) {
   return name
     .split(' ')

@@ -19,6 +19,27 @@
   --font-mono: ui-monospace, 'Cascadia Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15191a; --paper: #1c2123; --surface: #22282b; --surface-2: #2a3134; --surface-3: #323a3d;
+    --border: #3a4245; --ink: #e9ece8; --ink-muted: #a7ada4; --ink-faint: #767c74;
+    --accent: #7fb2cc; --accent-soft: #24404c; --accent-soft-ink: #a8d4e8;
+    --danger: #e2897d; --warning: #e0ab5c; --success: #85c19e; --neutral-chip: #8f9689;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15191a; --paper: #1c2123; --surface: #22282b; --surface-2: #2a3134; --surface-3: #323a3d;
+  --border: #3a4245; --ink: #e9ece8; --ink-muted: #a7ada4; --ink-faint: #767c74;
+  --accent: #7fb2cc; --accent-soft: #24404c; --accent-soft-ink: #a8d4e8;
+  --danger: #e2897d; --warning: #e0ab5c; --success: #85c19e; --neutral-chip: #8f9689;
+}
+:root[data-theme="light"] {
+  --bg: #eef0ec; --paper: #f4f5f1; --surface: #ffffff; --surface-2: #eceee8; --surface-3: #e2e5de;
+  --border: #d6dace; --ink: #1b1f1a; --ink-muted: #63695d; --ink-faint: #93998c;
+  --accent: #2c4a5e; --accent-soft: #dbe7ea; --accent-soft-ink: #244656;
+  --danger: #b3261e; --warning: #a8710a; --success: #3f6d54; --neutral-chip: #7c8272;
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -514,3 +535,99 @@ button { font-family: inherit; }
 .trendchart-col:hover .trendchart-bar, .trendchart-col:focus-visible .trendchart-bar { filter: brightness(1.12); }
 .trendchart-col:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .trendchart-axis { font-size: 0.62rem; color: var(--ink-faint); margin-top: 0.4rem; white-space: nowrap; }
+
+/* ---------- dark mode toggle ---------- */
+.theme-toggle {
+  margin-top: auto; align-self: stretch; text-align: left;
+  background: none; border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+  padding: 0.4rem 0.5rem; font-size: 0.78rem; color: var(--ink-muted);
+}
+.theme-toggle:hover { background: var(--surface-2); }
+
+/* ---------- toasts ---------- */
+.toast-stack {
+  position: fixed; bottom: 1.2rem; right: 1.2rem; z-index: 20;
+  display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-end;
+}
+.toast {
+  background: var(--ink); color: var(--bg); border-radius: 8px; padding: 0.55rem 0.9rem;
+  font-size: 0.82rem; font-weight: 600; box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.4);
+  animation: toast-in 0.15s ease;
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- retry button on error banners ---------- */
+.error-banner { display: flex; align-items: center; gap: 0.6rem; }
+.retry-btn {
+  margin-left: auto; flex: none; background: none; border: 1px solid currentColor; border-radius: 6px;
+  color: inherit; cursor: pointer; padding: 0.15rem 0.55rem; font-size: 0.75rem; font-weight: 650;
+}
+.retry-btn:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
+
+/* ---------- new ticket modal extras ---------- */
+.modal-row { display: flex; gap: 0.7rem; }
+.modal-row label { flex: 1; min-width: 0; }
+
+/* ---------- ticket detail extras ---------- */
+.reply-domain-hint { font-size: 0.74rem; color: var(--ink-faint); margin-top: 0.3rem; }
+.requester-link { color: var(--accent); text-decoration: none; }
+.requester-link:hover { text-decoration: underline; }
+.watcher-add-select {
+  font-size: 0.74rem; border: 1px dashed var(--border); border-radius: 99px; background: none;
+  padding: 0.2rem 0.5rem; color: var(--ink-muted); font-family: inherit;
+}
+.pill.emailed-pill { background: color-mix(in srgb, var(--success) 16%, var(--surface)); color: var(--success); }
+.attachment-link {
+  display: inline-flex; align-items: center; gap: 0.3rem; margin-top: 0.5rem; font-size: 0.8rem;
+  color: var(--accent); text-decoration: none;
+}
+.attachment-link:hover { text-decoration: underline; }
+.pending-attachment {
+  display: flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; color: var(--ink-muted);
+  margin-top: 0.5rem;
+}
+.pending-attachment button {
+  background: none; border: none; color: inherit; cursor: pointer; font-size: 0.9rem; padding: 0; opacity: 0.7;
+}
+.pending-attachment button:hover { opacity: 1; }
+
+/* ---------- bulk bar tag-add ---------- */
+.bulk-tag-form input {
+  font-size: 0.76rem; border: 1px dashed var(--border); border-radius: 99px; background: none;
+  padding: 0.25rem 0.6rem; color: var(--ink-muted); font-family: inherit; width: 140px;
+}
+
+/* ---------- team page extras ---------- */
+.role-select {
+  font-family: inherit; font-size: 0.8rem; font-weight: 650; color: var(--ink);
+  border: 1px solid var(--border); border-radius: 6px; padding: 0.25rem 0.4rem; background: var(--surface);
+}
+tr.team-row-highlight { background: var(--accent-soft); }
+tr.team-row-inactive { opacity: 0.5; }
+a.team-email { font-size: 0.76rem; color: var(--ink-faint); text-decoration: none; }
+a.team-email:hover { text-decoration: underline; }
+
+/* ---------- macros page extras ---------- */
+.macro-toolbar { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 1.2rem; }
+.macro-toolbar .macro-new-btn { margin-bottom: 0; }
+.macro-search { max-width: 260px; }
+
+/* ---------- settings page extras ---------- */
+.settings-hint { font-size: 0.8rem; color: var(--ink-faint); margin: -0.4rem 0 1rem; line-height: 1.5; }
+.settings-hint a { color: var(--accent); }
+
+/* ---------- dashboard extras ---------- */
+.stat-tile-link { text-decoration: none; color: inherit; display: block; transition: border-color 0.15s ease; }
+.stat-tile-link:hover { border-color: var(--accent); }
+.dash-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.9rem; }
+.dash-card-header h2 { margin: 0; }
+.range-toggle { display: flex; gap: 0.25rem; }
+.range-btn {
+  background: none; border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+  padding: 0.2rem 0.5rem; font-size: 0.74rem; color: var(--ink-muted); font-family: var(--font-mono);
+}
+.range-btn:hover { background: var(--surface-2); }
+.range-btn.active { background: var(--accent-soft); color: var(--accent-soft-ink); border-color: transparent; font-weight: 650; }

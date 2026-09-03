@@ -34,6 +34,7 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
     role = Column(Enum(Role), default=Role.user, nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True)
 
     tickets_created = relationship(
         "Ticket", back_populates="creator", foreign_keys="Ticket.created_by_id"
@@ -55,6 +56,7 @@ class Ticket(Base):
     assigned_to_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     due_at = Column(DateTime, nullable=True)
     tags = Column(JSON, nullable=False, default=list)
+    watcher_ids = Column(JSON, nullable=False, default=list)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -81,6 +83,9 @@ class Comment(Base):
     body = Column(Text, nullable=False)
     is_internal = Column(Boolean, nullable=False, default=False)
     mentioned_user_ids = Column(JSON, nullable=False, default=list)
+    attachment_url = Column(String, nullable=True)
+    attachment_name = Column(String, nullable=True)
+    emailed = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     ticket = relationship("Ticket", back_populates="comments")

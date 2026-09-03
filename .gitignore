@@ -4,6 +4,8 @@ __pycache__/
 venv/
 .venv/
 *.db
+backend/uploads/*
+!backend/uploads/.gitkeep
 
 # Node
 node_modules/

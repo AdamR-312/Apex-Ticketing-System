@@ -1,16 +1,25 @@
 import { useEffect, useState } from 'react'
 import { listMacros, createMacro, updateMacro, deleteMacro } from '../api'
+import { useToast } from '../components/Toast'
 
 export default function MacrosPage() {
   const [macros, setMacros] = useState([])
   const [error, setError] = useState(null)
+  const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState(null)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [saving, setSaving] = useState(false)
+  const [query, setQuery] = useState('')
+  const showToast = useToast()
 
   function refresh() {
-    listMacros().then(setMacros).catch((err) => setError(err.message))
+    setLoading(true)
+    setError(null)
+    listMacros()
+      .then(setMacros)
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false))
   }
 
   useEffect(refresh, [])
@@ -37,8 +46,10 @@ export default function MacrosPage() {
     try {
       if (editingId === 'new') {
         await createMacro({ title, body })
+        showToast('Macro created.')
       } else {
         await updateMacro(editingId, { title, body })
+        showToast('Macro saved.')
       }
       setEditingId(null)
       refresh()
@@ -52,11 +63,18 @@ export default function MacrosPage() {
   async function handleDelete(id) {
     try {
       await deleteMacro(id)
+      showToast('Macro deleted.')
       refresh()
     } catch (err) {
       setError(err.message)
     }
   }
+
+  const visibleMacros = macros.filter((m) => {
+    const q = query.trim().toLowerCase()
+    if (!q) return true
+    return m.title.toLowerCase().includes(q) || m.body.toLowerCase().includes(q)
+  })
 
   return (
     <div className="page-panel">
@@ -65,7 +83,14 @@ export default function MacrosPage() {
         <p>Reusable reply templates agents can insert into a ticket's reply box.</p>
       </div>
 
-      {error && <div className="error-banner" onClick={() => setError(null)}>{error} — click to dismiss</div>}
+      {error && (
+        <div className="error-banner" onClick={() => setError(null)}>
+          {error} — click to dismiss
+          <button type="button" className="retry-btn" onClick={(e) => { e.stopPropagation(); refresh() }}>
+            Retry
+          </button>
+        </div>
+      )}
 
       {editingId ? (
         <form className="settings-form macro-form" onSubmit={handleSave}>
@@ -87,13 +112,24 @@ export default function MacrosPage() {
           </div>
         </form>
       ) : (
-        <button className="btn macro-new-btn" onClick={startNew}>
-          + New macro
-        </button>
+        <div className="macro-toolbar">
+          <button className="btn macro-new-btn" onClick={startNew}>
+            + New macro
+          </button>
+          {macros.length > 0 && (
+            <input
+              type="search"
+              className="search-input macro-search"
+              placeholder="Search macros…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          )}
+        </div>
       )}
 
       <div className="macro-list">
-        {macros.map((m) => (
+        {visibleMacros.map((m) => (
           <div className="macro-card" key={m.id}>
             <div className="macro-card-top">
               <h3>{m.title}</h3>
@@ -109,7 +145,11 @@ export default function MacrosPage() {
             <p className="macro-card-body">{m.body}</p>
           </div>
         ))}
-        {macros.length === 0 && <p className="empty-state">No macros yet — add one above.</p>}
+        {loading && <p className="empty-state">Loading…</p>}
+        {!loading && macros.length === 0 && <p className="empty-state">No macros yet — add one above.</p>}
+        {!loading && macros.length > 0 && visibleMacros.length === 0 && (
+          <p className="empty-state">No macros match "{query}".</p>
+        )}
       </div>
     </div>
   )

@@ -6,6 +6,7 @@ import DashboardPage from './pages/DashboardPage'
 import TeamPage from './pages/TeamPage'
 import MacrosPage from './pages/MacrosPage'
 import SettingsPage from './pages/SettingsPage'
+import { ToastProvider } from './components/Toast'
 import { listTickets } from './api'
 import './App.css'
 
@@ -21,10 +22,14 @@ function loadStarredIds() {
 
 function App() {
   const [tickets, setTickets] = useState([])
+  const [ticketsLoading, setTicketsLoading] = useState(true)
   const [starredIds, setStarredIds] = useState(loadStarredIds)
 
   useEffect(() => {
-    listTickets().then(setTickets).catch(() => {})
+    listTickets()
+      .then(setTickets)
+      .catch(() => {})
+      .finally(() => setTicketsLoading(false))
   }, [])
 
   useEffect(() => {
@@ -41,32 +46,35 @@ function App() {
   }
 
   return (
-    <HashRouter>
-      <div className="app">
-        <div className="shell">
-          <PrimaryNav tickets={tickets} starredIds={starredIds} />
-          <div className="page-area">
-            <Routes>
-              <Route
-                path="/"
-                element={
-                  <QueuePage
-                    tickets={tickets}
-                    setTickets={setTickets}
-                    starredIds={starredIds}
-                    onToggleStar={toggleStar}
-                  />
-                }
-              />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/team" element={<TeamPage />} />
-              <Route path="/macros" element={<MacrosPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-            </Routes>
+    <ToastProvider>
+      <HashRouter>
+        <div className="app">
+          <div className="shell">
+            <PrimaryNav tickets={tickets} starredIds={starredIds} />
+            <div className="page-area">
+              <Routes>
+                <Route
+                  path="/"
+                  element={
+                    <QueuePage
+                      tickets={tickets}
+                      ticketsLoading={ticketsLoading}
+                      setTickets={setTickets}
+                      starredIds={starredIds}
+                      onToggleStar={toggleStar}
+                    />
+                  }
+                />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/team" element={<TeamPage />} />
+                <Route path="/macros" element={<MacrosPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+              </Routes>
+            </div>
           </div>
         </div>
-      </div>
-    </HashRouter>
+      </HashRouter>
+    </ToastProvider>
   )
 }
 

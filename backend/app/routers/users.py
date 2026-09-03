@@ -32,3 +32,15 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 @router.get("", response_model=List[schemas.UserOut])
 def list_users(db: Session = Depends(get_db)):
     return db.query(models.User).all()
+
+
+@router.patch("/{user_id}", response_model=schemas.UserOut)
+def update_user(user_id: int, update: schemas.UserUpdate, db: Session = Depends(get_db)):
+    user = db.get(models.User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    for field, value in update.model_dump(exclude_unset=True).items():
+        setattr(user, field, value)
+    db.commit()
+    db.refresh(user)
+    return user

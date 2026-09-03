@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
-import { relativeTime, initials, isOverdue } from '../format'
-import { listMacros } from '../api'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { relativeTime, absoluteTime, initials, isOverdue } from '../format'
+import { listMacros, getSettings, uploadAttachment, attachmentUrl } from '../api'
 
 const STATUS_OPTIONS = ['open', 'in_progress', 'resolved', 'closed']
 const STATUS_LABEL = {
@@ -41,6 +42,10 @@ function formatDateInput(isoString) {
   return isoString.slice(0, 10)
 }
 
+function draftKey(ticketId, tab) {
+  return `apex.draft.${ticketId}.${tab}`
+}
+
 export default function TicketDetail({
   ticket,
   usersById,
@@ -59,15 +64,32 @@ export default function TicketDetail({
   const [sending, setSending] = useState(false)
   const [macros, setMacros] = useState([])
   const [tagInput, setTagInput] = useState('')
+  const [watcherPick, setWatcherPick] = useState('')
+  const [settings, setSettings] = useState(null)
+  const [pendingAttachment, setPendingAttachment] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef(null)
 
   useEffect(() => {
     listMacros().then(setMacros).catch(() => {})
+    getSettings().then(setSettings).catch(() => {})
   }, [])
 
+  // Restore whatever was typed but never sent, so navigating away and back
+  // (or a stray reload) doesn't silently drop a half-written reply.
   useEffect(() => {
-    setReply('')
+    if (!ticket) return
+    setReply(localStorage.getItem(draftKey(ticket.id, activeTab)) || '')
     setMentionedIds([])
+    setPendingAttachment(null)
   }, [activeTab, ticket?.id])
+
+  useEffect(() => {
+    if (!ticket) return
+    const key = draftKey(ticket.id, activeTab)
+    if (reply) localStorage.setItem(key, reply)
+    else localStorage.removeItem(key)
+  }, [reply, ticket?.id, activeTab])
 
   const publicComments = useMemo(() => comments.filter((c) => !c.is_internal), [comments])
   const internalComments = useMemo(() => comments.filter((c) => c.is_internal), [comments])
@@ -97,12 +119,41 @@ export default function TicketDetail({
         body: reply.trim(),
         is_internal: activeTab === 'notes',
         mentioned_user_ids: mentionedIds,
+        attachment_url: pendingAttachment?.url ?? null,
+        attachment_name: pendingAttachment?.name ?? null,
       })
+      localStorage.removeItem(draftKey(ticket.id, activeTab))
       setReply('')
       setMentionedIds([])
+      setPendingAttachment(null)
     } finally {
       setSending(false)
     }
+  }
+
+  async function handleFileChange(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const uploaded = await uploadAttachment(ticket.id, file)
+      setPendingAttachment(uploaded)
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  function handleAddWatcher(e) {
+    const id = Number(e.target.value)
+    if (id && !ticket.watcher_ids.includes(id)) {
+      onUpdate({ watcher_ids: [...ticket.watcher_ids, id] })
+    }
+    setWatcherPick('')
+  }
+
+  function handleRemoveWatcher(id) {
+    onUpdate({ watcher_ids: ticket.watcher_ids.filter((w) => w !== id) })
   }
 
   function selectMention(user) {
@@ -143,6 +194,11 @@ export default function TicketDetail({
               {overdue && <span className="pill overdue-pill">Overdue</span>}
             </div>
             <h1 className="detail-title">{ticket.title}</h1>
+            {settings && (
+              <div className="reply-domain-hint">
+                Email in: <span className="mono">ticket-{ticket.id}@{settings.ticket_reply_domain}</span>
+              </div>
+            )}
           </div>
           <div className="detail-controls">
             <button
@@ -183,7 +239,11 @@ export default function TicketDetail({
           <div className="meta-row">
             <div className="meta-field">
               <div className="k">Requester</div>
-              <div className="v">{requester}</div>
+              <div className="v">
+                <Link className="requester-link" to={`/team?user=${ticket.created_by_id}`}>
+                  {requester}
+                </Link>
+              </div>
             </div>
             <div className="meta-field">
               <div className="k">Assignee</div>
@@ -247,6 +307,32 @@ export default function TicketDetail({
               </datalist>
             </form>
           </div>
+
+          <div className="tags-row watchers-row">
+            <div className="k tags-row-label">Watchers</div>
+            {ticket.watcher_ids.map((id) => (
+              <span className="tag-chip" key={id}>
+                {usersById[id]?.name || `user #${id}`}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveWatcher(id)}
+                  aria-label={`Remove watcher ${usersById[id]?.name || id}`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            <select className="watcher-add-select" value={watcherPick} onChange={handleAddWatcher}>
+              <option value="">+ Add watcher</option>
+              {users
+                .filter((u) => !ticket.watcher_ids.includes(u.id))
+                .map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+            </select>
+          </div>
         </div>
 
         <div className="message-card">
@@ -292,9 +378,26 @@ export default function TicketDetail({
                   <div className="thread-top">
                     <div className="avatar">{initials(usersById[c.author_id]?.name || 'Unknown')}</div>
                     <span className="thread-name">{usersById[c.author_id]?.name || 'Unknown'}</span>
-                    <span className="thread-time">{relativeTime(c.created_at)}</span>
+                    {c.emailed && (
+                      <span className="pill emailed-pill" title="Emailed to the requester">
+                        ✉ Emailed
+                      </span>
+                    )}
+                    <span className="thread-time" title={absoluteTime(c.created_at)}>
+                      {relativeTime(c.created_at)}
+                    </span>
                   </div>
                   <div className="thread-text">{renderWithMentions(c.body, usersById)}</div>
+                  {c.attachment_url && (
+                    <a
+                      className="attachment-link"
+                      href={attachmentUrl(c.attachment_url)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      📎 {c.attachment_name || 'Attachment'}
+                    </a>
+                  )}
                 </div>
               ))
             ))}
@@ -308,9 +411,21 @@ export default function TicketDetail({
                   <div className="thread-top">
                     <div className="avatar">{initials(usersById[c.author_id]?.name || 'Unknown')}</div>
                     <span className="thread-name">{usersById[c.author_id]?.name || 'Unknown'}</span>
-                    <span className="thread-time">{relativeTime(c.created_at)}</span>
+                    <span className="thread-time" title={absoluteTime(c.created_at)}>
+                      {relativeTime(c.created_at)}
+                    </span>
                   </div>
                   <div className="thread-text">{renderWithMentions(c.body, usersById)}</div>
+                  {c.attachment_url && (
+                    <a
+                      className="attachment-link"
+                      href={attachmentUrl(c.attachment_url)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      📎 {c.attachment_name || 'Attachment'}
+                    </a>
+                  )}
                 </div>
               ))
             ))}
@@ -352,6 +467,14 @@ export default function TicketDetail({
               </div>
             )}
           </div>
+          {pendingAttachment && (
+            <div className="pending-attachment">
+              📎 {pendingAttachment.name}
+              <button type="button" onClick={() => setPendingAttachment(null)} aria-label="Remove attachment">
+                ×
+              </button>
+            </div>
+          )}
           <div className="composer-actions">
             {macros.length > 0 && (
               <select
@@ -372,6 +495,21 @@ export default function TicketDetail({
                 ))}
               </select>
             )}
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="attachment-input"
+              onChange={handleFileChange}
+              hidden
+            />
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+            >
+              {uploading ? 'Uploading…' : '📎 Attach'}
+            </button>
             <button className="btn" onClick={handleSend} disabled={sending || !reply.trim()}>
               {sending ? 'Sending…' : activeTab === 'notes' ? 'Add note' : 'Send reply'}
             </button>

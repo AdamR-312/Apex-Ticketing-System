@@ -18,9 +18,11 @@ const PRIORITY_ORDER = [
   { key: 'low', label: 'Low', color: 'var(--neutral-chip)' },
 ]
 
-function buildDailyTrend(tickets) {
+const RANGE_OPTIONS = [7, 14, 30, 90]
+
+function buildDailyTrend(tickets, rangeDays) {
   const days = []
-  for (let i = 13; i >= 0; i--) {
+  for (let i = rangeDays - 1; i >= 0; i--) {
     const d = new Date()
     d.setUTCHours(0, 0, 0, 0)
     d.setUTCDate(d.getUTCDate() - i)
@@ -46,15 +48,19 @@ export default function DashboardPage() {
   const [tickets, setTickets] = useState([])
   const [users, setUsers] = useState([])
   const [error, setError] = useState(null)
+  const [rangeDays, setRangeDays] = useState(14)
 
-  useEffect(() => {
+  function refresh() {
+    setError(null)
     Promise.all([listTickets(), listUsers()])
       .then(([t, u]) => {
         setTickets(t)
         setUsers(u)
       })
       .catch((err) => setError(err.message))
-  }, [])
+  }
+
+  useEffect(refresh, [])
 
   const openCount = tickets.filter((t) => t.status === 'open' || t.status === 'in_progress').length
   const unassignedCount = tickets.filter((t) => t.assigned_to_id == null).length
@@ -89,7 +95,7 @@ export default function DashboardPage() {
     .filter((d) => d.value > 0)
     .sort((a, b) => b.value - a.value)
 
-  const trend = buildDailyTrend(tickets)
+  const trend = buildDailyTrend(tickets, rangeDays)
 
   return (
     <div className="page-panel">
@@ -98,15 +104,22 @@ export default function DashboardPage() {
         <p>Ticket volume and team stats, computed live from the current queue.</p>
       </div>
 
-      {error && <div className="error-banner" onClick={() => setError(null)}>{error} — click to dismiss</div>}
+      {error && (
+        <div className="error-banner" onClick={() => setError(null)}>
+          {error} — click to dismiss
+          <button type="button" className="retry-btn" onClick={(e) => { e.stopPropagation(); refresh() }}>
+            Retry
+          </button>
+        </div>
+      )}
 
       <div className="kpi-row">
-        <StatTile label="Total tickets" value={tickets.length} />
+        <StatTile label="Total tickets" value={tickets.length} to="/" />
         <StatTile label="Open + in progress" value={openCount} />
-        <StatTile label="Unassigned" value={unassignedCount} />
-        <StatTile label="High priority open" value={highPriorityOpenCount} />
+        <StatTile label="Unassigned" value={unassignedCount} to="/?folder=unassigned" />
+        <StatTile label="High priority open" value={highPriorityOpenCount} to="/?folder=p-high" />
         <StatTile label="Overdue" value={overdueCount} />
-        <StatTile label="Team members" value={users.length} />
+        <StatTile label="Team members" value={users.length} to="/team" />
       </div>
 
       <div className="dash-grid">
@@ -121,7 +134,21 @@ export default function DashboardPage() {
       </div>
 
       <div className="dash-card">
-        <h2>Tickets created — last 14 days</h2>
+        <div className="dash-card-header">
+          <h2>Tickets created — last {rangeDays} days</h2>
+          <div className="range-toggle">
+            {RANGE_OPTIONS.map((n) => (
+              <button
+                key={n}
+                type="button"
+                className={`range-btn${n === rangeDays ? ' active' : ''}`}
+                onClick={() => setRangeDays(n)}
+              >
+                {n}d
+              </button>
+            ))}
+          </div>
+        </div>
         <TrendChart data={trend} />
       </div>
 

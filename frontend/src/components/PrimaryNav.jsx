@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { NavLink, useLocation, useSearchParams } from 'react-router-dom'
 import { FOLDER_GROUPS, distinctTags } from '../folders'
 
@@ -9,9 +10,29 @@ const PAGES = [
   { to: '/settings', label: 'Settings' },
 ]
 
+const THEME_KEY = 'apex.theme'
+
+function loadTheme() {
+  const stored = localStorage.getItem(THEME_KEY)
+  if (stored === 'dark' || stored === 'light') return stored
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
+function useTheme() {
+  const [theme, setTheme] = useState(loadTheme)
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem(THEME_KEY, theme)
+  }, [theme])
+
+  return [theme, setTheme]
+}
+
 export default function PrimaryNav({ tickets, starredIds }) {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
+  const [theme, setTheme] = useTheme()
   const isQueueActive = location.pathname === '/'
   const selectedFolder = searchParams.get('folder') || 'all'
   const ctx = { starredIds }
@@ -25,6 +46,7 @@ export default function PrimaryNav({ tickets, starredIds }) {
     })),
   }
   const groups = tagGroup.items.length > 0 ? [...FOLDER_GROUPS, tagGroup] : FOLDER_GROUPS
+  const unassignedCount = tickets.filter((t) => t.assigned_to_id == null).length
 
   return (
     <nav className="primary-nav">
@@ -41,6 +63,11 @@ export default function PrimaryNav({ tickets, starredIds }) {
               className={({ isActive }) => `nav-item${isActive ? ' selected' : ''}`}
             >
               <span className="left">{page.label}</span>
+              {page.to === '/' && !isQueueActive && unassignedCount > 0 && (
+                <span className="count" title={`${unassignedCount} unassigned`}>
+                  {unassignedCount}
+                </span>
+              )}
             </NavLink>
             {page.to === '/' && isQueueActive && (
               <div className="folder-tree">
@@ -73,6 +100,14 @@ export default function PrimaryNav({ tickets, starredIds }) {
           </div>
         ))}
       </div>
+      <button
+        type="button"
+        className="theme-toggle"
+        onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+        title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      >
+        {theme === 'dark' ? '☀️ Light mode' : '🌙 Dark mode'}
+      </button>
     </nav>
   )
 }

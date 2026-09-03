@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { getSettings, updateSettings, createUser } from '../api'
+import { useToast } from '../components/Toast'
 
 const ROLE_OPTIONS = ['user', 'agent', 'admin']
 
@@ -14,13 +16,15 @@ export default function SettingsPage() {
   const [newName, setNewName] = useState('')
   const [newEmail, setNewEmail] = useState('')
   const [newPassword, setNewPassword] = useState('')
-  const [newRole, setNewRole] = useState('admin')
+  const [newRole, setNewRole] = useState('user')
   const [creating, setCreating] = useState(false)
   const [createResult, setCreateResult] = useState(null)
 
   const [error, setError] = useState(null)
+  const showToast = useToast()
 
-  useEffect(() => {
+  function fetchSettings() {
+    setError(null)
     getSettings()
       .then((s) => {
         setSettings(s)
@@ -29,7 +33,9 @@ export default function SettingsPage() {
         setDefaultPriority(s.default_priority)
       })
       .catch((err) => setError(err.message))
-  }, [])
+  }
+
+  useEffect(fetchSettings, [])
 
   async function handleSaveSettings(e) {
     e.preventDefault()
@@ -43,6 +49,7 @@ export default function SettingsPage() {
       })
       setSettings(updated)
       setSettingsSaved(true)
+      showToast('Settings saved.')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -62,9 +69,11 @@ export default function SettingsPage() {
         role: newRole,
       })
       setCreateResult({ ok: true, message: `Created ${user.role} account for ${user.email}.` })
+      showToast(`Account created for ${user.email}.`)
       setNewName('')
       setNewEmail('')
       setNewPassword('')
+      setNewRole('user')
     } catch (err) {
       setCreateResult({ ok: false, message: err.message })
     } finally {
@@ -79,7 +88,21 @@ export default function SettingsPage() {
         <p>Site configuration and account creation for power users.</p>
       </div>
 
-      {error && <div className="error-banner" onClick={() => setError(null)}>{error} — click to dismiss</div>}
+      {error && (
+        <div className="error-banner" onClick={() => setError(null)}>
+          {error} — click to dismiss
+          <button
+            type="button"
+            className="retry-btn"
+            onClick={(e) => {
+              e.stopPropagation()
+              fetchSettings()
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       <div className="settings-warning">
         No login exists yet — anyone who can reach this page (or the API directly) can create an
@@ -121,10 +144,20 @@ export default function SettingsPage() {
         ) : (
           <p className="empty-state">Loading…</p>
         )}
+        {settings && (
+          <p className="settings-hint">
+            Customers email in at <span className="mono">ticket-&lt;id&gt;@{settings.ticket_reply_domain}</span>{' '}
+            — replies route back to the matching ticket automatically.
+          </p>
+        )}
       </section>
 
       <section className="settings-section">
         <h2>Create account</h2>
+        <p className="settings-hint">
+          Need to change a role or deactivate someone instead? Manage existing accounts on the{' '}
+          <Link to="/team">Team page</Link>.
+        </p>
         <form className="settings-form" onSubmit={handleCreateAccount}>
           <label>
             Name

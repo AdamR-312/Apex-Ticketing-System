@@ -27,8 +27,22 @@ export const createComment = (ticketId, comment) =>
 
 export const listActivity = (ticketId) => request(`/tickets/${ticketId}/activity`)
 
+export async function uploadAttachment(ticketId, file) {
+  const body = new FormData()
+  body.append('file', file)
+  const res = await fetch(`${API_URL}/tickets/${ticketId}/attachments`, { method: 'POST', body })
+  if (!res.ok) throw new Error(`POST /tickets/${ticketId}/attachments failed: ${res.status}`)
+  return res.json()
+}
+
+export function attachmentUrl(path) {
+  return path?.startsWith('http') ? path : `${API_URL}${path}`
+}
+
 export const listUsers = () => request('/users')
 export const createUser = (user) => request('/users', { method: 'POST', body: JSON.stringify(user) })
+export const updateUser = (id, patch) =>
+  request(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
 
 export const getSettings = () => request('/settings')
 export const updateSettings = (patch) =>

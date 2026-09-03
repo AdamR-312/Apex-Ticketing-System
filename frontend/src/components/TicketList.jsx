@@ -1,5 +1,5 @@
-import { useRef } from 'react'
-import { relativeTime, initials, isOverdue } from '../format'
+import { useRef, useState } from 'react'
+import { relativeTime, absoluteTime, initials, isOverdue } from '../format'
 
 const STATUS_LABEL = {
   open: 'Open',
@@ -13,10 +13,12 @@ const SORT_OPTIONS = [
   { key: 'updated_asc', label: 'Oldest' },
   { key: 'priority', label: 'Priority' },
   { key: 'requester', label: 'Requester A–Z' },
+  { key: 'due_date', label: 'Due date' },
 ]
 
 export default function TicketList({
   tickets,
+  loading,
   usersById,
   users,
   selectedId,
@@ -35,11 +37,13 @@ export default function TicketList({
   onToggleSelectAll,
   onClearSelection,
   onBulkUpdate,
+  onBulkAddTag,
 }) {
   const isFiltered = searchQuery.trim().length > 0
   const rowRefs = useRef({})
   const bulkCount = selectedIds.size
   const allSelected = tickets.length > 0 && tickets.every((t) => selectedIds.has(t.id))
+  const [bulkTagInput, setBulkTagInput] = useState('')
 
   function moveSelection(fromId, delta) {
     const index = tickets.findIndex((t) => t.id === fromId)
@@ -120,6 +124,37 @@ export default function TicketList({
               </option>
             ))}
           </select>
+          <select
+            className="bulk-select"
+            defaultValue=""
+            onChange={(e) => {
+              if (e.target.value) onBulkUpdate({ priority: e.target.value })
+              e.target.value = ''
+            }}
+          >
+            <option value="" disabled>
+              Set priority…
+            </option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+          <form
+            className="bulk-tag-form"
+            onSubmit={(e) => {
+              e.preventDefault()
+              const tag = bulkTagInput.trim().toLowerCase()
+              if (!tag) return
+              onBulkAddTag(tag)
+              setBulkTagInput('')
+            }}
+          >
+            <input
+              placeholder="+ Add tag to selection"
+              value={bulkTagInput}
+              onChange={(e) => setBulkTagInput(e.target.value)}
+            />
+          </form>
           <button className="btn ghost bulk-clear" onClick={onClearSelection}>
             Clear
           </button>
@@ -138,7 +173,11 @@ export default function TicketList({
       <div className="list-scroll">
         {tickets.length === 0 && (
           <div className="empty-state">
-            {isFiltered ? `No tickets match "${searchQuery}".` : 'No tickets here.'}
+            {loading
+              ? 'Loading…'
+              : isFiltered
+                ? `No tickets match "${searchQuery}".`
+                : 'No tickets here.'}
           </div>
         )}
         {tickets.map((t) => {
@@ -180,7 +219,9 @@ export default function TicketList({
               <div className="trow-body">
                 <div className="trow-top">
                   <span className="trow-name">{requester}</span>
-                  <span className="trow-time">{relativeTime(t.updated_at)}</span>
+                  <span className="trow-time" title={absoluteTime(t.updated_at)}>
+                    {relativeTime(t.updated_at)}
+                  </span>
                 </div>
                 <div className="trow-subject">{t.title}</div>
                 <div className="trow-preview">{t.description}</div>

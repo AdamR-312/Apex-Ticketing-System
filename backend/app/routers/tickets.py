@@ -1,13 +1,17 @@
+import uuid
+from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 
-from .. import models, schemas
-from ..config import FAKE_CURRENT_USER_ID
+from .. import email_service, models, schemas
+from ..config import FAKE_CURRENT_USER_ID, TICKET_REPLY_DOMAIN
 from ..db import get_db
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
+
+UPLOADS_DIR = Path(__file__).resolve().parent.parent.parent / "uploads"
 
 
 def _get_ticket_or_404(ticket_id: int, db: Session) -> models.Ticket:
@@ -61,8 +65,12 @@ def _describe_changes(db: Session, ticket: models.Ticket, changes: dict) -> List
 
 @router.post("", response_model=schemas.TicketOut, status_code=201)
 def create_ticket(ticket: schemas.TicketCreate, db: Session = Depends(get_db)):
-    # TODO: replace FAKE_CURRENT_USER_ID with the authenticated user once auth lands
-    db_ticket = models.Ticket(**ticket.model_dump(), created_by_id=FAKE_CURRENT_USER_ID)
+    data = ticket.model_dump()
+    # Filing "on behalf of" a requester is allowed (e.g. an agent logging a
+    # phone call); default to the fake logged-in user when none is given.
+    # TODO: once auth lands, only admins/agents may set created_by_id.
+    created_by_id = data.pop("created_by_id", None) or FAKE_CURRENT_USER_ID
+    db_ticket = models.Ticket(**data, created_by_id=created_by_id)
     db.add(db_ticket)
     db.commit()
     db.refresh(db_ticket)
@@ -109,7 +117,7 @@ def list_comments(ticket_id: int, db: Session = Depends(get_db)):
 def create_comment(
     ticket_id: int, comment: schemas.CommentCreate, db: Session = Depends(get_db)
 ):
-    _get_ticket_or_404(ticket_id, db)
+    ticket = _get_ticket_or_404(ticket_id, db)
     # TODO: replace FAKE_CURRENT_USER_ID with the authenticated user once auth lands
     db_comment = models.Comment(
         ticket_id=ticket_id,
@@ -117,11 +125,44 @@ def create_comment(
         body=comment.body,
         is_internal=comment.is_internal,
         mentioned_user_ids=comment.mentioned_user_ids,
+        attachment_url=comment.attachment_url,
+        attachment_name=comment.attachment_name,
     )
+
+    # A public reply from the UI (as opposed to one that arrived by email
+    # via the inbound webhook) never reaches the requester unless we email
+    # it to them — the webhook path only notifies admins, not customers.
+    if not comment.is_internal:
+        requester = db.get(models.User, ticket.created_by_id)
+        if requester:
+            try:
+                email_service.send_email(
+                    requester.email,
+                    f"Re: [Ticket #{ticket.id}] {ticket.title}",
+                    f"{comment.body}\n\nReply to this email to respond.",
+                    reply_to=f"ticket-{ticket.id}@{TICKET_REPLY_DOMAIN}",
+                )
+                db_comment.emailed = True
+            except Exception:
+                db_comment.emailed = False
+
     db.add(db_comment)
     db.commit()
     db.refresh(db_comment)
     return db_comment
+
+
+@router.post("/{ticket_id}/attachments", response_model=schemas.AttachmentOut, status_code=201)
+async def upload_attachment(
+    ticket_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)
+):
+    _get_ticket_or_404(ticket_id, db)
+    UPLOADS_DIR.mkdir(exist_ok=True)
+    suffix = Path(file.filename or "").suffix
+    stored_name = f"{uuid.uuid4().hex}{suffix}"
+    contents = await file.read()
+    (UPLOADS_DIR / stored_name).write_bytes(contents)
+    return schemas.AttachmentOut(url=f"/uploads/{stored_name}", name=file.filename or stored_name)
 
 
 @router.get("/{ticket_id}/activity", response_model=List[schemas.ActivityOut])
