@@ -70,11 +70,20 @@ async def inbound_email(request: Request, db: Session = Depends(get_db)):
         )
         db.add(comment)
         db.commit()
-        email_service.notify_admins_new_reply(ticket.id, ticket.title, body, from_email)
+        # The ticket-side record of this reply is already saved — a failure
+        # sending the admin heads-up email shouldn't turn into a 500 that
+        # makes Mailgun think the whole webhook (and thus the reply) failed.
+        try:
+            email_service.notify_admins_new_reply(ticket.id, ticket.title, body, from_email)
+        except Exception:
+            pass
         return
 
     ticket = models.Ticket(title=subject, description=body, created_by_id=requester.id)
     db.add(ticket)
     db.commit()
     db.refresh(ticket)
-    email_service.notify_admins_new_ticket(ticket.id, ticket.title, body, from_email)
+    try:
+        email_service.notify_admins_new_ticket(ticket.id, ticket.title, body, from_email)
+    except Exception:
+        pass
